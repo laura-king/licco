@@ -213,7 +213,7 @@ def validate_import_headers(fft, prjid, fftid=None):
             continue
         try:
             val = attrs[header]["fromstr"](fft[header])
-        except (ValueError, KeyError) as e:
+        except (ValueError, KeyError, TypeError) as e:
             error_str = f"Invalid Data {fft[header]} For Type of {header}."
             return False, error_str
     return True, "Success"
