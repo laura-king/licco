@@ -114,6 +114,10 @@ def initialize_collections(licco_db: MongoDb):
 
 
 def is_user_allowed_to_edit_project(db: MongoDb, userid: str, project: Dict[str, any]) -> bool:
+    """
+    Checks if a specific username is set as an owner or editor of a project,
+    allowing them to edit the project
+    """
     if userid == '' or None:
         return False
 
@@ -140,6 +144,7 @@ def get_all_users(licco_db: MongoDb):
 
 def get_fft_id_by_names(licco_db: MongoDb, fc, fg):
     """
+    TODO: Remove? will we need this function anymore? if we have device and project lookups that may be all we need...
     Return ID of FFT
     based off of a provided string FC and FG names. 
     :param: fft - dict of {fc, fg} with string names of fc, fg
@@ -149,6 +154,13 @@ def get_fft_id_by_names(licco_db: MongoDb, fc, fg):
     fg_obj = licco_db["fgs"].find_one({"name": fg})
     fft = licco_db["ffts"].find_one({"fc": ObjectId(fc_obj["_id"]), "fg": ObjectId(fg_obj["_id"])})
     return fft["_id"]
+
+def get_device_id_from_name(licco_db: MongoDb, fc: str):
+    """
+    TODO: Remove? Made to replace prev. function, idk if used
+    """
+    device = licco_db["device_history"].find_one({"fc": fc})
+    return device["_id"]
 
 def get_users_with_privilege(licco_db: MongoDb, privilege):
     """
@@ -172,6 +184,7 @@ def get_users_with_privilege(licco_db: MongoDb, privilege):
 
 def get_fft_values_by_project(licco_db: MongoDb, fftid, prjid):
     """
+    TODO: Remove? what is this used for-check later. seems big
     Return newest data connected with the provided Project and FFT
     :param fftid - the id of the FFT
     :param prjid - the id of the project
@@ -181,6 +194,7 @@ def get_fft_values_by_project(licco_db: MongoDb, fftid, prjid):
     results = list(licco_db["projects_history"].find({"prj": ObjectId(prjid), "fft": ObjectId(fftid)}).sort("time", 1))
     for res in results:
         fft_pairings[res["key"]] = res["val"]
+    print("HEy", fft_pairings)
     return fft_pairings
 
 
@@ -244,7 +258,8 @@ def get_project(licco_db: MongoDb, id) -> Optional[McdProject]:
 
 def get_project_ffts(licco_db: MongoDb, prjid, showallentries=True, asoftimestamp=None, fftid=None):
     """
-    Get the FFTs for a project given its id.
+    TODO: rename
+    Get the current devices with their data from a project id
     """
     oid = ObjectId(prjid)
     logger.info("Looking for project details for %s", oid)
@@ -340,6 +355,7 @@ def add_fft_comment(licco_db: MongoDb, user_id: str, project_id: str, fftid: str
         'comment': comment,
         'time': datetime.datetime.now(datetime.UTC),
     }]}
+    # TODO: New snapshot for comments? We keep same snapshot but add comment?
     status, errormsg, results = update_fft_in_project(licco_db, user_id, project_id, new_comment)
     return status, errormsg, results
 
@@ -911,7 +927,6 @@ def update_ffts_in_project(licco_db: MongoDb, userid: str, prjid: str, ffts, def
         allowed_to_update = is_user_allowed_to_edit_project(licco_db, userid, project)
         if not allowed_to_update:
             return False, f"user '{userid}' is not allowed to update a project {project['name']}", ImportCounter()
-
 
     # TODO: ROBUSTNESS: we should validate ffts before insertion: right now it's possible that only some of the
     #       ffts will be inserted, while the ones with errors will not. This leaves the db in an inconsistent state.

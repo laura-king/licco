@@ -5,11 +5,24 @@ from bson import ObjectId
 logger = logging.getLogger(__name__)
 
 def get_project_attributes(db, projectid, fftid=None, skipClonedEntries=False, asoftimestamp=None, commentAfterTimestamp=None):
+    # get correct project ID
     project = db["projects"].find_one({"_id": ObjectId(projectid)})
     if not project:
         logger.error("Cannot find project for id %s", projectid)
         return {}
+    print(projectid, fftid, skipClonedEntries, asoftimestamp, commentAfterTimestamp)
 
+    # find most recent project snapshot
+    snapshot = db["project_history"].find_one(
+        {"project_id": ObjectId(projectid)},
+        sort=[( "snapshot_timestamp", -1 )]
+        )
+    # get information for each device
+    device_information = get_devices_from_snapshot(db, projectid, snapshot)
+    #TODO: handle comments?
+
+    return device_information
+    """
     mtch = { "$match": {"$and": [ { "prj": ObjectId(projectid)} ]}}
     if skipClonedEntries:  # skip initial values (when cloning a project)
         mtch["$match"]["$and"].append({"time": {"$gt": project["creation_time"]}})
@@ -41,6 +54,7 @@ def get_project_attributes(db, projectid, fftid=None, skipClonedEntries=False, a
         {"$unwind": "$fgobj"},
         {"$sort": {"prj": 1, "fcobj.name": 1, "fgobj.name": 1, "latestkey": 1}}
     ])]
+    print("histories", histories)
     details = {}
     for hist in histories:
         fft = hist["fftobj"]
@@ -97,16 +111,21 @@ def get_project_attributes(db, projectid, fftid=None, skipClonedEntries=False, a
         # ensures discussion field is always present (at least as an empty array)
         if not device.get("discussion"):
             device["discussion"] = []
-
-    return details
-
+    return details"
+    """
 
 def get_all_project_changes(propdb, projectid):
-    project = propdb["projects"].find_one({"_id": ObjectId(projectid)})
-    if not project:
-        logger.error("Cannot find project for id %s", projectid)
-        return {}
+    #TODO: should this just be all snapshots now? What exactly do we return here?
+    snapshots = propdb["project_history"].find({"prj": ObjectId(projectid)})
+    if not snapshots:
+        logger.error("No projects with project ID %s", projectid)
+    
+    project_changes = {}
+    for snapshot in snapshots:
+        project_changes[snapshot["_id"]] = get_devices_from_snapshot(snapshot)
+    return project_changes
 
+    """
     mtch = { "$match": {"$and": [ { "prj": ObjectId(projectid)} ]}}
 
     histories = [ x for x in propdb["projects_history"].aggregate([
@@ -130,4 +149,15 @@ def get_all_project_changes(propdb, projectid):
             "time": "$time"
         }},
     ])]
-    return histories
+    return histories"
+    """
+
+def get_devices_from_snapshot(db, projectid, snapshot):
+    #TODO: dictionary to match old format? does it need to be?
+    # Do we just need fields? other things?
+    proj_devices = {}
+    for device_id in snapshot["devices"]:
+        # TODO: handle subdevices, for now we dump all info, no filter
+        device = db["device_history"].find_one({"_id": ObjectId(device_id), "project_id": ObjectId(projectid)})
+        proj_devices[device["_id"]] = device
+    return proj_devices
